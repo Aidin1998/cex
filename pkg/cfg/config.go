@@ -4,17 +4,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/spf13/viper"
 )
 
-type accountsConfig struct {
-	Port      string `mapstructure:"port"`
-	JWTSecret string `mapstructure:"jwt_secret"`
-}
-
+// AccountsConfig holds HTTP port & DSN for accounts module
 type AccountsConfig struct {
-	DSN  string `mapstructure:"dsn"`  // your cockroach/postgres DSN
-	Port string `mapstructure:"port"` // HTTP port for accounts
+	Port string `mapstructure:"ACCOUNTS_PORT" validate:"required"`
+	DSN  string `mapstructure:"ACCOUNTS_DSN"  validate:"required,url"`
 }
 
 // DBConfig holds the global database connection string.
@@ -38,12 +35,10 @@ type UsersConfig struct {
 	// JWTSecret is the HMAC secret for signing user JWTs.
 	JWTSecret string `mapstructure:"jwt_secret"`
 }
+
 type Config struct {
-	Accounts struct {
-		Port string
-		DSN  string
-	}
-	Queue struct {
+	Accounts AccountsConfig
+	Queue    struct {
 		Topics []string
 		URL    string
 	}
@@ -57,24 +52,18 @@ var Cfg Config
 
 // Init reads config.(yaml|json|toml|env) into Cfg
 func Init() {
-	viper.SetConfigName("config") // looks for config.(yaml|json|toml) in working dir
-	viper.AddConfigPath(".")
-	viper.AutomaticEnv() // also read from $ENV
+	v := viper.New()
+	v.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err != nil {
-		panic("failed to read config: " + err.Error())
-	}
-	if err := viper.Unmarshal(&Cfg); err != nil {
+	if err := v.Unmarshal(&Cfg); err != nil {
 		panic("failed to unmarshal config: " + err.Error())
 	}
 
+	if err := validator.New().Struct(Cfg.Accounts); err != nil {
+		panic("invalid accounts config: " + err.Error())
+	}
+
 	// ─── Fail‐fast checks ───────────────────────────────
-	if Cfg.Accounts.Port == "" {
-		panic("config: accounts.port is required")
-	}
-	if Cfg.Accounts.DSN == "" {
-		panic("config: accounts.dsn is required")
-	}
 	if Cfg.DB.URL == "" {
 		panic("config: db.url is required")
 	}

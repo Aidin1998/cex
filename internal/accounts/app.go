@@ -55,7 +55,7 @@ func NewServer() (*echo.Echo, error) {
 
 	// 5) Run migrations (000001_create_accounts_table.sql, etc.)
 	ctx := context.Background()
-	dbConn, err := db.ConnectAndMigrate(ctx, cfg.Cfg.Accounts.DSN)
+	dbConn, err := db.OpenAndMigrate(ctx, cfg.Cfg.Accounts.DSN)
 	if err != nil {
 		return nil, err
 	}
