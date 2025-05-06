@@ -8,6 +8,7 @@ import (
 
 	"cex/internal/accounts/api"
 	"cex/internal/accounts/db"
+	"cex/internal/accounts/service"
 	"cex/pkg/cfg"
 
 	"github.com/brpaz/echozap"
@@ -41,8 +42,9 @@ func NewServer() (*echo.Echo, error) {
 		return nil, err
 	}
 
-	// 6) Mount your API routes, passing in the live *sql.DB
-	api.RegisterRoutes(e, dbConn)
+	// 6) Mount your API routes, passing in the live *service.Service
+	service := service.NewService(dbConn) // Create a new service instance
+	api.RegisterRoutes(e, service)
 
 	// 7) Health‐check endpoint
 	e.GET("/healthz", func(c echo.Context) error {

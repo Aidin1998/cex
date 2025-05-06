@@ -1,30 +1,32 @@
 package api
 
 import (
-	"database/sql"
-	"net/http"
-
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+
+	"cex/internal/accounts/service"
+	"cex/pkg/apiutil"
 )
 
-// RegisterRoutes wires up all /accounts endpoints.
-func RegisterRoutes(e *echo.Echo, db *sql.DB) {
+func RegisterRoutes(e *echo.Echo, svc *service.Service) {
+	// 1) global middleware for JSON errors
+	e.Use(middleware.Recover())
+	e.HTTPErrorHandler = apiutil.JSONErrorHandler
+
+	// 2) bind & validate
+	v := validator.New()
+	e.Validator = apiutil.NewEchoValidator(v)
+
+	// 3) create a sub-router
 	g := e.Group("/accounts")
 
-	g.GET("/healthz", healthz)
-	g.GET("", ListAccounts)
-	g.POST("", CreateAccount)
-	// TODO: more endpoints here...
-}
+	// 4) POST /accounts
+	g.POST("", createAccountHandler(svc))
 
-func healthz(c echo.Context) error {
-	return c.JSON(http.StatusOK, map[string]string{"status": "OK"})
-}
+	// 5) GET /accounts/:id
+	g.GET("/:id", getAccountHandler(svc))
 
-func ListAccounts(c echo.Context) error {
-	return c.JSON(http.StatusOK, map[string]string{"stub": "ListAccounts"})
-}
-
-func CreateAccount(c echo.Context) error {
-	return c.JSON(http.StatusCreated, map[string]string{"stub": "CreateAccount"})
+	// 6) GET /accounts?owner_id=&offset=&limit=
+	g.GET("", listAccountsHandler(svc))
 }

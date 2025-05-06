@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"cex/internal/accounts/api"
+	"cex/internal/accounts/db"
+	"cex/internal/accounts/service"
+	"cex/pkg/cfg"
+
 	"github.com/brpaz/echozap"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
-
-	"cex/internal/accounts/api"
-	"cex/internal/accounts/db"
-	"cex/pkg/cfg"
 )
 
 func main() {
@@ -47,8 +48,9 @@ func main() {
 	//     SigningKey: []byte(cfg.Cfg.JWTSecret),
 	// }))
 
-	// 7) Register account routes
-	api.RegisterRoutes(e, database)
+	// 7) Create a service instance and register account routes
+	serviceInstance := service.NewService(database)
+	api.RegisterRoutes(e, serviceInstance)
 
 	// 8) Start server
 	addr := fmt.Sprintf(":%s", cfg.Cfg.Accounts.Port)
