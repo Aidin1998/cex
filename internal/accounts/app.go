@@ -12,6 +12,7 @@ import (
 	"cex/pkg/cfg"
 
 	"github.com/brpaz/echozap"
+	jwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
@@ -34,6 +35,13 @@ func NewServer() (*echo.Echo, error) {
 		middleware.Recover(),
 		middleware.RequestID(),
 	)
+
+	// 4) JWT authentication for all /accounts routes
+	e.Use(jwt.WithConfig(jwt.Config{
+		SigningKey:  []byte(cfg.Cfg.Users.JWTSecret),
+		ContextKey:  "user", // JWT claims will be available under c.Get("user")
+		TokenLookup: "header:Authorization",
+	}))
 
 	// 5) Run migrations (000001_create_accounts_table.sql, etc.)
 	ctx := context.Background()

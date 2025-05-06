@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/shopspring/decimal"
@@ -55,17 +56,33 @@ func createAccountHandler(svc *service.Service) echo.HandlerFunc {
 
 func getAccountHandler(svc *service.Service) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		// Extract userID from JWT claims
+		token := c.Get("user").(*jwt.Token)
+		claims := token.Claims.(jwt.MapClaims)
+		uidStr := claims["sub"].(string) // assume sub = user UUID
+		userID, err := uuid.Parse(uidStr)
+		if err != nil {
+			return apiutil.NewUnauthorizedError("invalid JWT subject")
+		}
+
 		// 1) parse & validate path param
 		idStr := c.Param("id")
 		acctID, err := uuid.Parse(idStr)
 		if err != nil {
 			return apiutil.NewBadRequestError("invalid account ID")
 		}
+
 		// 2) call service
 		acct, err := svc.GetAccount(c.Request().Context(), acctID)
 		if err != nil {
 			return apiutil.HandleServiceError(c, err)
 		}
+
+		// Check if the account belongs to the user
+		if acct.OwnerID != userID {
+			return apiutil.NewForbiddenError("not your account")
+		}
+
 		// 3) respond
 		res := accountResponse{
 			ID:        acct.ID,
@@ -80,18 +97,25 @@ func getAccountHandler(svc *service.Service) echo.HandlerFunc {
 
 func listAccountsHandler(svc *service.Service) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		// 1) parse query params owner_id, offset, limit
-		ownerID, err := uuid.Parse(c.QueryParam("owner_id"))
+		// Extract userID from JWT claims
+		token := c.Get("user").(*jwt.Token)
+		claims := token.Claims.(jwt.MapClaims)
+		uidStr := claims["sub"].(string)
+		userID, err := uuid.Parse(uidStr)
 		if err != nil {
-			return apiutil.NewBadRequestError("invalid owner_id")
+			return apiutil.NewUnauthorizedError("invalid JWT subject")
 		}
+
+		// 1) parse query params offset, limit
 		offset, _ := strconv.Atoi(c.QueryParam("offset"))
 		limit, _ := strconv.Atoi(c.QueryParam("limit"))
-		// 2) call service
-		accts, err := svc.ListAccounts(c.Request().Context(), ownerID, offset, limit)
+
+		// 2) call service with the userID
+		accts, err := svc.ListAccounts(c.Request().Context(), userID, offset, limit)
 		if err != nil {
 			return apiutil.HandleServiceError(c, err)
 		}
+
 		// 3) map to []accountResponse
 		var out []accountResponse
 		for _, a := range accts {

@@ -73,3 +73,13 @@ func HandleServiceError(c echo.Context, err error) error {
 func NewBadRequestError(message string) *echo.HTTPError {
 	return echo.NewHTTPError(http.StatusBadRequest, message)
 }
+
+// NewUnauthorizedError creates a new unauthorized error with a custom message.
+func NewUnauthorizedError(message string) *echo.HTTPError {
+	return echo.NewHTTPError(http.StatusUnauthorized, message)
+}
+
+// NewForbiddenError creates a new Forbidden error with a custom message.
+func NewForbiddenError(message string) *echo.HTTPError {
+	return echo.NewHTTPError(http.StatusForbidden, message)
+}
