@@ -48,7 +48,7 @@ func main() {
 	// }))
 
 	// 7) Register account routes
-	api.RegisterRoutes(e)
+	api.RegisterRoutes(e, database)
 
 	// 8) Start server
 	addr := fmt.Sprintf(":%s", cfg.Cfg.Accounts.Port)

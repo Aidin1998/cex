@@ -1,13 +1,14 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 )
 
 // RegisterRoutes wires up all /accounts endpoints.
-func RegisterRoutes(e *echo.Echo) {
+func RegisterRoutes(e *echo.Echo, db *sql.DB) {
 	g := e.Group("/accounts")
 
 	g.GET("/healthz", healthz)
