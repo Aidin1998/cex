@@ -15,6 +15,9 @@ type accountsConfig struct {
 type Config struct {
 	Accounts accountsConfig `mapstructure:"accounts"`
 	// …other modules…
+	DB struct {
+		URL string
+	}
 }
 
 var Cfg Config
