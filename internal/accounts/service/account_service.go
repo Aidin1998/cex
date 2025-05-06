@@ -9,15 +9,18 @@ import (
 	"github.com/shopspring/decimal"
 
 	"cex/internal/accounts/model"
+	"cex/internal/accounts/queue"
+	"cex/pkg/apiutil"
 )
 
 type Service struct {
-	db *sql.DB
+	db        *sql.DB
+	publisher *queue.Publisher
 }
 
 // NewService returns a new account service.
-func NewService(db *sql.DB) *Service {
-	return &Service{db: db}
+func NewService(db *sql.DB, pub *queue.Publisher) *Service {
+	return &Service{db: db, publisher: pub}
 }
 
 func (s *Service) CreateAccount(ctx context.Context, ownerID uuid.UUID) (model.Account, error) {
@@ -34,13 +37,23 @@ func (s *Service) CreateAccount(ctx context.Context, ownerID uuid.UUID) (model.A
 		return model.Account{}, err
 	}
 
-	return model.Account{
+	account := model.Account{
 		ID:        id,
 		OwnerID:   ownerID,
 		Balance:   initialBalance,
 		CreatedAt: now,
 		UpdatedAt: now,
-	}, nil
+	}
+
+	ev := apiutil.AccountCreatedEvent{
+		EventID:   uuid.New(),
+		AccountID: account.ID,
+		OwnerID:   account.OwnerID,
+		Timestamp: time.Now().UTC(),
+	}
+	_ = s.publisher.PublishAccountCreated(ctx, ev)
+
+	return account, nil
 }
 
 func (s *Service) GetAccount(ctx context.Context, id uuid.UUID) (model.Account, error) {
@@ -117,6 +130,17 @@ func (s *Service) UpdateBalance(ctx context.Context, id uuid.UUID, delta decimal
 		tx.Rollback()
 		return err
 	}
+
+	ev := apiutil.BalanceUpdatedEvent{
+		EventID:    uuid.New(),
+		AccountID:  id,
+		OldBalance: oldBalance.String(),
+		NewBalance: newBalance.String(),
+		Delta:      delta.String(),
+		Reason:     "manual-update",
+		Timestamp:  time.Now().UTC(),
+	}
+	_ = s.publisher.PublishBalanceUpdated(ctx, ev)
 
 	return tx.Commit()
 }

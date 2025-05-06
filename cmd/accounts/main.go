@@ -6,6 +6,7 @@ import (
 
 	"cex/internal/accounts/api"
 	"cex/internal/accounts/db"
+	"cex/internal/accounts/queue"
 	"cex/internal/accounts/service"
 	"cex/pkg/cfg"
 
@@ -48,8 +49,12 @@ func main() {
 	//     SigningKey: []byte(cfg.Cfg.JWTSecret),
 	// }))
 
-	// 7) Create a service instance and register account routes
-	serviceInstance := service.NewService(database)
+	// 7) Create a queue publisher
+	publisher := queue.NewPublisher(cfg.Cfg.Queue.Topics, cfg.Cfg.Queue.URL)
+	defer publisher.Close()
+
+	// Create a service instance and register account routes
+	serviceInstance := service.NewService(database, publisher)
 	api.RegisterRoutes(e, serviceInstance)
 
 	// 8) Start server

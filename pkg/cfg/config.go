@@ -38,15 +38,18 @@ type UsersConfig struct {
 	// JWTSecret is the HMAC secret for signing user JWTs.
 	JWTSecret string `mapstructure:"jwt_secret"`
 }
-
-// Config is your global config object.
 type Config struct {
-	// … existing fields …
+	Accounts struct {
+		Port string
+		DSN  string
+	}
+	Queue struct {
+		Topics []string
+		URL    string
+	}
 	DB    DBConfig    `mapstructure:"db"`
 	HTTP  HTTPConfig  `mapstructure:"http"`
 	Users UsersConfig `mapstructure:"users"`
-	// ← **** NEW ****
-	Accounts AccountsConfig `mapstructure:"accounts"`
 }
 
 // Cfg is the singleton instance loaded by Init.

@@ -8,6 +8,7 @@ import (
 
 	"cex/internal/accounts/api"
 	"cex/internal/accounts/db"
+	"cex/internal/accounts/queue"
 	"cex/internal/accounts/service"
 	"cex/pkg/cfg"
 
@@ -51,7 +52,8 @@ func NewServer() (*echo.Echo, error) {
 	}
 
 	// 6) Mount your API routes, passing in the live *service.Service
-	service := service.NewService(dbConn) // Create a new service instance
+	publisher := queue.NewPublisher([]string{"queue1", "queue2"}, "defaultQueue") // Create a new queue.Publisher instance
+	service := service.NewService(dbConn, publisher)                              // Create a new service instance
 	api.RegisterRoutes(e, service)
 
 	// 7) Health‐check endpoint
