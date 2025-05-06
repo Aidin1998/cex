@@ -3,68 +3,51 @@ package accounts
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"cex/internal/accounts/api"
-	"cex/internal/accounts/db"
-	"cex/internal/accounts/queue"
-	"cex/internal/accounts/service"
+	"cex/internal/accounts"
 	"cex/pkg/cfg"
-	"cex/pkg/otel"
-
-	"github.com/brpaz/echozap"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"go.uber.org/zap"
 )
 
 func main() {
-	// 1) Load shared config (must set cfg.Cfg.Accounts.Port first)
+	// 1) Load & validate config
 	cfg.Init()
 
-	// 2) Create a Zap logger
-	zapLog, err := zap.NewProduction()
+	// 2) Bootstrap the Accounts HTTP server
+	e, err := accounts.NewServer()
 	if err != nil {
-		panic(fmt.Sprintf("failed to init zap: %v", err))
-	}
-	defer zapLog.Sync()
-
-	// 3) Initialize OpenTelemetry tracer
-	if err := otel.InitTracer("accounts"); err != nil {
-		panic(fmt.Sprintf("failed to init tracer: %v", err))
+		log.Fatalf("startup failed: %v", err)
 	}
 
-	// 4) Connect to the database and run migrations
-	ctx := context.Background()
-	database, err := db.ConnectAndMigrate(ctx, cfg.Cfg.Accounts.DSN)
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize database: %v", err))
+	// 3) Run server in background
+	srvErr := make(chan error, 1)
+	go func() {
+		addr := fmt.Sprintf(":%s", cfg.Cfg.Accounts.Port)
+		e.Logger.Info("starting accounts service", "addr", addr)
+		srvErr <- e.Start(addr)
+	}()
+
+	// 4) Wait for SIGINT/SIGTERM or a server error
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case sig := <-quit:
+		e.Logger.Info("shutting down", "signal", sig.String())
+	case err := <-srvErr:
+		e.Logger.Error("server error", "error", err)
 	}
-	defer database.Close()
 
-	// 5) Bootstrap Echo
-	e := echo.New()
+	// 5) Graceful shutdown with 10s timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// 6) Global middleware
-	e.Use(middleware.Recover())      // recover panics
-	e.Use(echozap.ZapLogger(zapLog)) // request/response logging
-	// Removed echozap.ZapRecovery as it does not exist
-	e.Use(middleware.Recover()) // recover panics
-
-	// 7) JWT (stubbed for now—swap in your auth module when ready)
-	// e.Use(middleware.JWTWithConfig(middleware.JWTConfig{
-	//     SigningKey: []byte(cfg.Cfg.JWTSecret),
-	// }))
-
-	// 8) Create a queue publisher
-	publisher := queue.NewPublisher(cfg.Cfg.Queue.Topics, cfg.Cfg.Queue.URL)
-	defer publisher.Close()
-
-	// Create a service instance and register account routes
-	serviceInstance := service.NewService(database, publisher)
-	api.RegisterRoutes(e, serviceInstance)
-
-	// 9) Start server
-	addr := fmt.Sprintf(":%s", cfg.Cfg.Accounts.Port)
-	zapLog.Info("starting accounts service", zap.String("addr", addr))
-	e.Logger.Fatal(e.Start(addr))
+	if err := e.Shutdown(ctx); err != nil {
+		e.Logger.Error("shutdown error", "error", err)
+	}
+	e.Logger.Info("shutdown complete")
 }

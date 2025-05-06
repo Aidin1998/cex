@@ -67,6 +67,18 @@ func Init() {
 	if err := viper.Unmarshal(&Cfg); err != nil {
 		panic("failed to unmarshal config: " + err.Error())
 	}
+
+	// ─── Fail‐fast checks ───────────────────────────────
+	if Cfg.Accounts.Port == "" {
+		panic("config: accounts.port is required")
+	}
+	if Cfg.Accounts.DSN == "" {
+		panic("config: accounts.dsn is required")
+	}
+	if Cfg.DB.URL == "" {
+		panic("config: db.url is required")
+	}
+	// ────────────────────────────────────────────────────
 }
 
 func MustLoad[T any]() *T {
