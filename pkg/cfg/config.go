@@ -12,12 +12,44 @@ type accountsConfig struct {
 	JWTSecret string `mapstructure:"jwt_secret"`
 }
 
-type Config struct {
-	DB struct {
-		URL string
-	}
+type AccountsConfig struct {
+	DSN  string `mapstructure:"dsn"`  // your cockroach/postgres DSN
+	Port string `mapstructure:"port"` // HTTP port for accounts
 }
 
+// DBConfig holds the global database connection string.
+type DBConfig struct {
+	// URL is the Postgres (CockroachDB) DSN.
+	URL string `mapstructure:"url"`
+}
+
+// HTTPConfig holds default HTTP server settings.
+type HTTPConfig struct {
+	// Port is the TCP port for the HTTP gateway.
+	Port string `mapstructure:"port"`
+}
+
+// UsersConfig holds settings for the users module.
+type UsersConfig struct {
+	// DSN is the Postgres DSN for the users service.
+	DSN string `mapstructure:"dsn"`
+	// Port is the HTTP port for the users service.
+	Port string `mapstructure:"port"`
+	// JWTSecret is the HMAC secret for signing user JWTs.
+	JWTSecret string `mapstructure:"jwt_secret"`
+}
+
+// Config is your global config object.
+type Config struct {
+	// … existing fields …
+	DB    DBConfig    `mapstructure:"db"`
+	HTTP  HTTPConfig  `mapstructure:"http"`
+	Users UsersConfig `mapstructure:"users"`
+	// ← **** NEW ****
+	Accounts AccountsConfig `mapstructure:"accounts"`
+}
+
+// Cfg is the singleton instance loaded by Init.
 var Cfg Config
 
 // Init reads config.(yaml|json|toml|env) into Cfg

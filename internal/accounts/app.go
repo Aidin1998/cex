@@ -1,17 +1,19 @@
 package accounts
 
 import (
+	"context"
 	"net/http"
 
 	_ "github.com/lib/pq" // Replace with your database driver
+
+	"cex/internal/accounts/api"
+	"cex/internal/accounts/db"
+	"cex/pkg/cfg"
 
 	"github.com/brpaz/echozap"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"go.uber.org/zap"
-
-	"cex/internal/accounts/api"
-	"cex/pkg/cfg"
 )
 
 func NewServer() (*echo.Echo, error) {
@@ -27,22 +29,15 @@ func NewServer() (*echo.Echo, error) {
 	// 3) Create Echo and wire up middleware
 	e := echo.New()
 	e.Use(
+		echozap.ZapLogger(zapLog),
 		middleware.Recover(),
 		middleware.RequestID(),
 	)
-	// Request‐logging + panic‐recovery via echozap
-	e.Use(
-		echozap.ZapLogger(zapLog),
-		middleware.Recover(),
-	)
 
-	// 4) Connect to CockroachDB (Postgres) via your dbpkg helper
-	dbConn, err := db.NewDB(cfg.Cfg.Accounts.DSN)
-	if err != nil {
-		return nil, err
-	}
 	// 5) Run migrations (000001_create_accounts_table.sql, etc.)
-	if err := dbpkg.Migrate(dbConn); err != nil {
+	ctx := context.Background()
+	dbConn, err := db.ConnectAndMigrate(ctx, cfg.Cfg.Accounts.DSN)
+	if err != nil {
 		return nil, err
 	}
 

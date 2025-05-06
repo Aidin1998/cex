@@ -27,7 +27,7 @@ func main() {
 
 	// 3) Connect to the database and run migrations
 	ctx := context.Background()
-	database, err := db.ConnectAndMigrate(ctx)
+	database, err := db.ConnectAndMigrate(ctx, cfg.Cfg.Accounts.DSN)
 	if err != nil {
 		panic(fmt.Sprintf("failed to initialize database: %v", err))
 	}

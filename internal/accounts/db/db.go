@@ -3,40 +3,41 @@ package db
 import (
 	"context"
 	"database/sql"
-	"fmt"
-
-	"cex/pkg/cfg"
 
 	_ "github.com/lib/pq"
 	"github.com/pressly/goose/v3"
 )
 
-// ConnectAndMigrate connects to the database and runs migrations.
-func ConnectAndMigrate(ctx context.Context) (*sql.DB, error) {
-	// Read DSN from configuration
-	dsn := cfg.Cfg.DB.URL
-	if dsn == "" {
-		return nil, fmt.Errorf("database DSN is not configured")
-	}
-
-	// Open a connection to the database
+// NewDB opens a *sql.DB using the provided DSN.
+func NewDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database connection: %w", err)
+		return nil, err
 	}
-
-	// Verify the connection
-	if err := db.PingContext(ctx); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	// Set Goose dialect and run migrations
-	goose.SetDialect("postgres")
-	if err := goose.Up(db, "db/accounts/migration"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
-	}
-
+	// optional: db.SetMaxOpenConns(...)
 	return db, nil
+}
+
+// ConnectAndMigrate opens the DB, pings it, runs all goose migrations, and returns the live *sql.DB.
+func ConnectAndMigrate(ctx context.Context, dsn string) (*sql.DB, error) {
+	// 1) open
+	dbConn, err := NewDB(dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2) ping
+	if err := dbConn.PingContext(ctx); err != nil {
+		dbConn.Close()
+		return nil, err
+	}
+
+	// 3) run migrations
+	goose.SetDialect("postgres")
+	if err := goose.Up(dbConn, "db/accounts/migration"); err != nil {
+		dbConn.Close()
+		return nil, err
+	}
+
+	return dbConn, nil
 }
