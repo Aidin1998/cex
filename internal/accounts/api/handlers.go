@@ -8,8 +8,10 @@ import (
 	jwt "github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 
+	"cex/internal/accounts/metrics"
 	"cex/internal/accounts/service"
 	"cex/pkg/apiutil"
 )
@@ -30,6 +32,9 @@ type accountResponse struct {
 
 func createAccountHandler(svc *service.Service) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		timer := prometheus.NewTimer(metrics.RequestDuration.WithLabelValues(c.Request().Method, c.Path()))
+		defer timer.ObserveDuration()
+
 		// 1) bind & validate
 		var req createAccountRequest
 		if err := apiutil.BindAndValidate(c, &req); err != nil {
@@ -50,12 +55,17 @@ func createAccountHandler(svc *service.Service) echo.HandlerFunc {
 		}
 		// 4) set Location header + 201
 		c.Response().Header().Set("Location", "/accounts/"+acct.ID.String())
+
+		metrics.RequestsTotal.WithLabelValues(c.Request().Method, c.Path(), strconv.Itoa(c.Response().Status)).Inc()
 		return c.JSON(http.StatusCreated, res)
 	}
 }
 
 func getAccountHandler(svc *service.Service) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		timer := prometheus.NewTimer(metrics.RequestDuration.WithLabelValues(c.Request().Method, c.Path()))
+		defer timer.ObserveDuration()
+
 		// Extract userID from JWT claims
 		token := c.Get("user").(*jwt.Token)
 		claims := token.Claims.(jwt.MapClaims)
@@ -91,12 +101,17 @@ func getAccountHandler(svc *service.Service) echo.HandlerFunc {
 			CreatedAt: acct.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: acct.UpdatedAt.Format(time.RFC3339),
 		}
+
+		metrics.RequestsTotal.WithLabelValues(c.Request().Method, c.Path(), strconv.Itoa(c.Response().Status)).Inc()
 		return c.JSON(http.StatusOK, res)
 	}
 }
 
 func listAccountsHandler(svc *service.Service) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		timer := prometheus.NewTimer(metrics.RequestDuration.WithLabelValues(c.Request().Method, c.Path()))
+		defer timer.ObserveDuration()
+
 		// Extract userID from JWT claims
 		token := c.Get("user").(*jwt.Token)
 		claims := token.Claims.(jwt.MapClaims)
@@ -127,6 +142,8 @@ func listAccountsHandler(svc *service.Service) echo.HandlerFunc {
 				UpdatedAt: a.UpdatedAt.Format(time.RFC3339),
 			})
 		}
+
+		metrics.RequestsTotal.WithLabelValues(c.Request().Method, c.Path(), strconv.Itoa(c.Response().Status)).Inc()
 		return c.JSON(http.StatusOK, out)
 	}
 }

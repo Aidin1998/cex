@@ -8,14 +8,17 @@ import (
 
 	"cex/internal/accounts/api"
 	"cex/internal/accounts/db"
+	"cex/internal/accounts/metrics"
 	"cex/internal/accounts/queue"
 	"cex/internal/accounts/service"
 	"cex/pkg/cfg"
 
 	"github.com/brpaz/echozap"
+	"github.com/labstack/echo-contrib/echoprometheus"
 	jwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -36,6 +39,12 @@ func NewServer() (*echo.Echo, error) {
 		middleware.Recover(),
 		middleware.RequestID(),
 	)
+
+	// Initialize and register Prometheus metrics
+	metrics.InitMetrics()
+
+	// Prometheus middleware to track requests & latencies
+	e.Use(echoprometheus.NewMiddleware("accounts"))
 
 	// 4) JWT authentication for all /accounts routes
 	e.Use(jwt.WithConfig(jwt.Config{
@@ -61,6 +70,9 @@ func NewServer() (*echo.Echo, error) {
 		zapLog.Info("health check")
 		return c.JSON(http.StatusOK, map[string]string{"status": "OK"})
 	})
+
+	// Expose /metrics for Prometheus scraping
+	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	return e, nil
 }

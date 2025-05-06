@@ -11,6 +11,8 @@ import (
 	"cex/internal/accounts/model"
 	"cex/internal/accounts/queue"
 	"cex/pkg/apiutil"
+
+	"go.opentelemetry.io/otel"
 )
 
 type Service struct {
@@ -24,6 +26,10 @@ func NewService(db *sql.DB, pub *queue.Publisher) *Service {
 }
 
 func (s *Service) CreateAccount(ctx context.Context, ownerID uuid.UUID) (model.Account, error) {
+	tracer := otel.Tracer("accounts-service")
+	ctx, span := tracer.Start(ctx, "Service.CreateAccount")
+	defer span.End()
+
 	id := uuid.New()
 	now := time.Now().UTC()
 	initialBalance := decimal.Zero
@@ -107,6 +113,10 @@ func (s *Service) ListAccounts(ctx context.Context, ownerID uuid.UUID, offset, l
 }
 
 func (s *Service) UpdateBalance(ctx context.Context, id uuid.UUID, delta decimal.Decimal) error {
+	tracer := otel.Tracer("accounts-service")
+	ctx, span := tracer.Start(ctx, "Service.UpdateBalance")
+	defer span.End()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

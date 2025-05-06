@@ -9,6 +9,7 @@ import (
 	"cex/internal/accounts/queue"
 	"cex/internal/accounts/service"
 	"cex/pkg/cfg"
+	"cex/pkg/otel"
 
 	"github.com/brpaz/echozap"
 	"github.com/labstack/echo/v4"
@@ -27,7 +28,12 @@ func main() {
 	}
 	defer zapLog.Sync()
 
-	// 3) Connect to the database and run migrations
+	// 3) Initialize OpenTelemetry tracer
+	if err := otel.InitTracer("accounts"); err != nil {
+		panic(fmt.Sprintf("failed to init tracer: %v", err))
+	}
+
+	// 4) Connect to the database and run migrations
 	ctx := context.Background()
 	database, err := db.ConnectAndMigrate(ctx, cfg.Cfg.Accounts.DSN)
 	if err != nil {
@@ -35,21 +41,21 @@ func main() {
 	}
 	defer database.Close()
 
-	// 4) Bootstrap Echo
+	// 5) Bootstrap Echo
 	e := echo.New()
 
-	// 5) Global middleware
+	// 6) Global middleware
 	e.Use(middleware.Recover())      // recover panics
 	e.Use(echozap.ZapLogger(zapLog)) // request/response logging
 	// Removed echozap.ZapRecovery as it does not exist
 	e.Use(middleware.Recover()) // recover panics
 
-	// 6) JWT (stubbed for now—swap in your auth module when ready)
+	// 7) JWT (stubbed for now—swap in your auth module when ready)
 	// e.Use(middleware.JWTWithConfig(middleware.JWTConfig{
 	//     SigningKey: []byte(cfg.Cfg.JWTSecret),
 	// }))
 
-	// 7) Create a queue publisher
+	// 8) Create a queue publisher
 	publisher := queue.NewPublisher(cfg.Cfg.Queue.Topics, cfg.Cfg.Queue.URL)
 	defer publisher.Close()
 
@@ -57,7 +63,7 @@ func main() {
 	serviceInstance := service.NewService(database, publisher)
 	api.RegisterRoutes(e, serviceInstance)
 
-	// 8) Start server
+	// 9) Start server
 	addr := fmt.Sprintf(":%s", cfg.Cfg.Accounts.Port)
 	zapLog.Info("starting accounts service", zap.String("addr", addr))
 	e.Logger.Fatal(e.Start(addr))

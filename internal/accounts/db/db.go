@@ -6,6 +6,7 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/pressly/goose/v3"
+	"go.opentelemetry.io/otel"
 )
 
 // NewDB opens a *sql.DB using the provided DSN.
@@ -20,6 +21,10 @@ func NewDB(dsn string) (*sql.DB, error) {
 
 // ConnectAndMigrate opens the DB, pings it, runs all goose migrations, and returns the live *sql.DB.
 func ConnectAndMigrate(ctx context.Context, dsn string) (*sql.DB, error) {
+	tracer := otel.Tracer("accounts-db")
+	ctx, span := tracer.Start(ctx, "DB.ConnectAndMigrate")
+	defer span.End()
+
 	// 1) open
 	dbConn, err := NewDB(dsn)
 	if err != nil {
