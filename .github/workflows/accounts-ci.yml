@@ -1,0 +1,116 @@
+name: Accounts Service CI/CD
+
+on:
+  pull_request:
+    paths:
+      - 'cmd/accounts/**'
+      - 'internal/accounts/**'
+      - 'pkg/**'
+      - '.github/workflows/accounts-ci.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'cmd/accounts/**'
+      - 'internal/accounts/**'
+      - 'pkg/**'
+
+jobs:
+  setup:
+    name: Set up Go
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.head.outputs.sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get commit SHA
+        id: head
+        run: echo "::set-output name=sha::$(git rev-parse --short HEAD)"
+      - name: Set up Go 1.24
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+  lint:
+    name: Lint & Vet
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: v1.56.0
+          args: --timeout=5m
+      - name: go vet
+        run: go vet ./cmd/accounts/... ./internal/accounts/...
+
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      cockroachdb:
+        image: cockroachdb/cockroach:v22.1.7
+        ports: ['26257:26257']
+        options: >-
+          --health-cmd "pg_isready -U root -d defaultdb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ACCOUNTS_DSN: postgresql://root@localhost:26257/defaultdb?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for CockroachDB
+        run: |
+          for i in {1..10}; do
+            pg_isready -U root -d defaultdb && break
+            sleep 5
+          done
+      - name: Run unit tests
+        run: go test ./test/accounts/unit/... -timeout 2m -cover
+      - name: Run integration tests
+        run: go test ./test/accounts/integration/... -timeout 5m
+
+  build:
+    name: Build Binary
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build cmd/accounts
+        run: go build -o accounts ./cmd/accounts
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - name: Run gosec
+        run: gosec ./cmd/accounts/... ./internal/accounts/...
+
+  publish:
+    name: Build & Publish Docker Image
+    runs-on: ubuntu-latest
+    needs: security
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build & push image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: cmd/accounts/Dockerfile
+          push: true
+          tags: your-dockerhub-user/accounts:${{ needs.setup.outputs.sha }}
