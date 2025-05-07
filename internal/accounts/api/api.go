@@ -1,15 +1,18 @@
 package api
 
 import (
+	"cex/internal/accounts/queue"
 	"database/sql"
 
-	"github.com/go-playground/validator/v10"
+	jwt "github.com/labstack/echo-jwt/v4"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
-	"cex/internal/accounts/api/handlers"
+	"github.com/go-playground/validator/v10"
+
 	"cex/internal/accounts/service"
 	"cex/pkg/apiutil"
+	"cex/pkg/cfg"
 )
 
 var jwtMiddleware = jwt.WithConfig(jwt.Config{
@@ -27,20 +30,25 @@ func RegisterRoutes(e *echo.Echo, db *sql.DB) {
 	v := validator.New()
 	e.Validator = apiutil.NewEchoValidator(v)
 
-	// 3) create a sub-router
-	// Create a queue.Publisher instance (replace with actual implementation)
-	publisher := service.NewQueuePublisher() // Ensure NewQueuePublisher is implemented in the service package
-
+	// Create a Kafka publisher instance
+	publisher := queue.NewPublisher(
+		cfg.Cfg.Kafka.Brokers,       // e.g. []string{"localhost:9092"}
+		cfg.Cfg.Kafka.TopicAccounts, // e.g. "accounts-events"
+	)
 	// Pass the publisher to the service
 	svc := service.NewAccountService(db, publisher)
-	g := e.Group("/accounts", jwtMiddleware)
-
+	// apply JWT middleware (imported above)
+	g := e.Group("/accounts", jwt.WithConfig(jwt.Config{
+		SigningKey:  []byte("your-jwt-secret"),
+		ContextKey:  "user",
+		TokenLookup: "header:Authorization",
+	}))
 	// 4) POST /accounts
-	g.POST("", handlers.CreateAccountHandler(svc))
+	g.POST("", CreateAccountHandler(svc))
 
 	// 5) GET /accounts/:id
-	g.GET("/:id", handlers.GetAccountHandler(svc))
+	g.GET("/:id", GetAccountHandler(svc))
 
 	// 6) GET /accounts?owner_id=&offset=&limit=
-	g.GET("", handlers.ListAccountsHandler(svc))
+	g.GET("", ListAccountsHandler(svc))
 }

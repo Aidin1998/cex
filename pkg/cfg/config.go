@@ -42,6 +42,10 @@ type Config struct {
 		Topics []string
 		URL    string
 	}
+	Kafka struct {
+		Brokers       []string
+		TopicAccounts string
+	}
 	DB    DBConfig    `mapstructure:"db"`
 	HTTP  HTTPConfig  `mapstructure:"http"`
 	Users UsersConfig `mapstructure:"users"`

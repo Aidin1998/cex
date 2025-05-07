@@ -29,7 +29,7 @@ type accountResponse struct {
 	UpdatedAt string          `json:"updated_at"`
 }
 
-func CreateAccountHandler(svc service.AccountService) echo.HandlerFunc {
+func CreateAccountHandler(svc *service.AccountService) echo.HandlerFunc {
 	type req struct {
 		Type string `json:"type" validate:"required,oneof=fiat spot futures"`
 	}
@@ -54,7 +54,7 @@ func CreateAccountHandler(svc service.AccountService) echo.HandlerFunc {
 	}
 }
 
-func getAccountHandler(svc *service.Service) echo.HandlerFunc {
+func GetAccountHandler(svc *service.AccountService) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		timer := prometheus.NewTimer(metrics.RequestDuration.WithLabelValues(c.Request().Method, c.Path()))
 		defer timer.ObserveDuration()
@@ -101,7 +101,7 @@ func getAccountHandler(svc *service.Service) echo.HandlerFunc {
 	}
 }
 
-func listAccountsHandler(svc *service.Service) echo.HandlerFunc {
+func ListAccountsHandler(svc *service.AccountService) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		timer := prometheus.NewTimer(metrics.RequestDuration.WithLabelValues(c.Request().Method, c.Path()))
 		defer timer.ObserveDuration()
