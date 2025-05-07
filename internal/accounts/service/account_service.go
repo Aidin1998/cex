@@ -15,62 +15,64 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-type Service struct {
+type AccountService struct {
 	db        *sql.DB
 	publisher *queue.Publisher
 }
 
-// NewService returns a new account service.
-func NewService(db *sql.DB, pub *queue.Publisher) *Service {
-	return &Service{db: db, publisher: pub}
+func NewAccountService(db *sql.DB, pub *queue.Publisher) *AccountService {
+	return &AccountService{db: db, publisher: pub}
 }
 
-func (s *Service) CreateAccount(ctx context.Context, ownerID uuid.UUID) (model.Account, error) {
+func (s *AccountService) CreateAccount(ctx context.Context, ownerID uuid.UUID, accountType string) (model.Account, error) {
 	tracer := otel.Tracer("accounts-service")
-	ctx, span := tracer.Start(ctx, "Service.CreateAccount")
+	ctx, span := tracer.Start(ctx, "AccountService.CreateAccount")
 	defer span.End()
 
-	id := uuid.New()
-	now := time.Now().UTC()
-	initialBalance := decimal.Zero
-
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO accounts (id, owner_id, balance, created_at, updated_at) 
-		VALUES ($1, $2, $3, $4, $5)`,
-		id, ownerID, initialBalance, now, now,
-	)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return model.Account{}, err
 	}
 
-	account := model.Account{
-		ID:        id,
-		OwnerID:   ownerID,
-		Balance:   initialBalance,
-		CreatedAt: now,
-		UpdatedAt: now,
+	var account model.Account
+	account.ID = uuid.New()
+	account.OwnerID = ownerID
+	account.Balance = decimal.Zero
+	account.CreatedAt = time.Now().UTC()
+	account.UpdatedAt = account.CreatedAt
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO accounts (id, owner_id, balance, account_type, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		account.ID, account.OwnerID, account.Balance, accountType, account.CreatedAt, account.UpdatedAt,
+	)
+	if err != nil {
+		tx.Rollback()
+		return model.Account{}, err
 	}
 
 	ev := apiutil.AccountCreatedEvent{
-		EventID:   uuid.New(),
-		AccountID: account.ID,
-		OwnerID:   account.OwnerID,
-		Timestamp: time.Now().UTC(),
+		EventID:     uuid.New(),
+		AccountID:   account.ID,
+		OwnerID:     ownerID,
+		AccountType: accountType,
+		Timestamp:   time.Now().UTC(),
 	}
 	_ = s.publisher.PublishAccountCreated(ctx, ev)
 
-	return account, nil
+	return account, tx.Commit()
 }
 
-func (s *Service) GetAccount(ctx context.Context, id uuid.UUID) (model.Account, error) {
+func (s *AccountService) GetAccount(ctx context.Context, id uuid.UUID) (model.Account, error) {
 	var account model.Account
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, owner_id, balance, created_at, updated_at 
+		SELECT id, owner_id, balance, account_type, created_at, updated_at 
 		FROM accounts WHERE id = $1`, id,
 	).Scan(
 		&account.ID,
 		&account.OwnerID,
 		&account.Balance,
+		&account.Type,
 		&account.CreatedAt,
 		&account.UpdatedAt,
 	)
@@ -83,9 +85,9 @@ func (s *Service) GetAccount(ctx context.Context, id uuid.UUID) (model.Account, 
 	return account, nil
 }
 
-func (s *Service) ListAccounts(ctx context.Context, ownerID uuid.UUID, offset, limit int) ([]model.Account, error) {
+func (s *AccountService) ListAccounts(ctx context.Context, ownerID uuid.UUID, offset, limit int) ([]model.Account, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, owner_id, balance, created_at, updated_at 
+		SELECT id, owner_id, balance, account_type, created_at, updated_at 
 		FROM accounts WHERE owner_id = $1 
 		ORDER BY created_at DESC OFFSET $2 LIMIT $3`,
 		ownerID, offset, limit,
@@ -102,6 +104,7 @@ func (s *Service) ListAccounts(ctx context.Context, ownerID uuid.UUID, offset, l
 			&account.ID,
 			&account.OwnerID,
 			&account.Balance,
+			&account.Type,
 			&account.CreatedAt,
 			&account.UpdatedAt,
 		); err != nil {
@@ -112,9 +115,9 @@ func (s *Service) ListAccounts(ctx context.Context, ownerID uuid.UUID, offset, l
 	return accounts, nil
 }
 
-func (s *Service) UpdateBalance(ctx context.Context, id uuid.UUID, delta decimal.Decimal) error {
+func (s *AccountService) UpdateBalance(ctx context.Context, id uuid.UUID, delta decimal.Decimal) error {
 	tracer := otel.Tracer("accounts-service")
-	ctx, span := tracer.Start(ctx, "Service.UpdateBalance")
+	ctx, span := tracer.Start(ctx, "AccountService.UpdateBalance")
 	defer span.End()
 
 	tx, err := s.db.BeginTx(ctx, nil)

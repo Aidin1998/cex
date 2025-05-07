@@ -18,10 +18,11 @@ func main() {
 	cfg.Init()
 
 	// 2) Bootstrap the Accounts HTTP server
-	e, err := accounts.NewServer()
+	e, dbConn, err := accounts.NewServer()
 	if err != nil {
-		log.Fatalf("startup failed: %v", err)
+		log.Fatalf("accounts startup failed: %v", err)
 	}
+	defer dbConn.Close()
 
 	// 3) Run server in background
 	srvErr := make(chan error, 1)

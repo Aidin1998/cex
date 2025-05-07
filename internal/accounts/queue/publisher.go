@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"cex/internal/accounts/model"
+	"cex/pkg/apiutil"
+
 	"github.com/segmentio/kafka-go"
 	"github.com/sony/gobreaker"
-
-	"cex/pkg/apiutil"
 )
 
 type Config struct {
@@ -22,6 +23,9 @@ type Config struct {
 		Topics []string
 	}
 }
+
+var writer *kafka.Writer // Initialize in app.go
+
 type Publisher struct {
 	writer  *kafka.Writer
 	breaker *gobreaker.CircuitBreaker
@@ -69,6 +73,21 @@ func (p *Publisher) PublishBalanceUpdated(ctx context.Context, e apiutil.Balance
 	key := e.EventID.String()
 	msg, _ := json.Marshal(e)
 	return p.writer.WriteMessages(ctx, kafka.Message{Key: []byte(key), Value: msg})
+}
+
+// PublishAccountCreated publishes an account creation event.
+func PublishAccountCreated(ctx context.Context, acct model.Account) error {
+	msg := apiutil.Event{
+		Type:    "account.created",
+		Payload: acct,
+	}
+	return writer.WriteMessages(ctx, kafka.Message{
+		Key: []byte(acct.ID.String()),
+		Value: func() []byte {
+			data, _ := json.Marshal(msg)
+			return data
+		}(),
+	})
 }
 
 // Close closes the Kafka writer.

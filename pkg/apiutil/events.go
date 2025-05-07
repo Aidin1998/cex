@@ -8,10 +8,11 @@ import (
 
 // AccountCreatedEvent is published when a new Account is created.
 type AccountCreatedEvent struct {
-	EventID   uuid.UUID `json:"event_id"`
-	AccountID uuid.UUID `json:"account_id"`
-	OwnerID   uuid.UUID `json:"owner_id"`
-	Timestamp time.Time `json:"timestamp"`
+	EventID     uuid.UUID `json:"event_id"`
+	AccountID   uuid.UUID `json:"account_id"`
+	OwnerID     uuid.UUID `json:"owner_id"`
+	AccountType string    `json:"account_type"`
+	Timestamp   time.Time `json:"timestamp"`
 }
 
 // BalanceUpdatedEvent is published when an Account balance changes.
@@ -23,4 +24,10 @@ type BalanceUpdatedEvent struct {
 	Delta      string    `json:"delta"`
 	Reason     string    `json:"reason"` // e.g. "credit", "debit"
 	Timestamp  time.Time `json:"timestamp"`
+}
+
+// Event represents a generic event structure.
+type Event struct {
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload"`
 }
