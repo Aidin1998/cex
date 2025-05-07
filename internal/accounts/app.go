@@ -42,6 +42,10 @@ func NewServer() (*echo.Echo, *sql.DB, error) {
 		echoprom.NewMiddleware("accounts"), // Prometheus
 	)
 
+	// Initialize Prometheus metrics middleware
+	e.Use(metrics.Middleware())
+	metrics.RegisterMetricsEndpoint(e)
+
 	if err := e.Start(":" + cfg.Cfg.Accounts.Port); err != nil {
 		zapLog.Fatal("failed to start accounts service", zap.Error(err))
 	}

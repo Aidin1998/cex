@@ -19,7 +19,6 @@ paths:
   /accounts:
     post:
       summary: Create a new account
-      security: [ { bearerAuth: [] } ]
       requestBody:
         required: true
         content:
@@ -29,38 +28,10 @@ paths:
       responses:
         '201':
           description: Account created
-          headers:
-            Location:
-              description: URL of the new account
-              schema:
-                type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AccountResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-  /accounts/{id}:
-    get:
-      summary: Get account by ID
-      security: [ { bearerAuth: [] } ]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Account details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AccountResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-  /accounts:
     get:
       summary: List user’s accounts
       security: [ { bearerAuth: [] } ]
@@ -80,6 +51,24 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/AccountResponse'
+  /accounts/{id}:
+    get:
+      summary: Get account by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /healthz:
     get:
       summary: Health check

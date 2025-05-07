@@ -44,7 +44,7 @@ func TestAccountsEndToEnd(t *testing.T) {
 
 	// 2) Set cfg and run migrations
 	cfg.Cfg.Accounts.DSN = dsn
-	dbConn, err := db.ConnectAndMigrate(ctx, dsn)
+	dbConn, err := db.OpenAndMigrate(ctx, dsn)
 	assert.NoError(t, err)
 
 	// 3) Start HTTP server in background

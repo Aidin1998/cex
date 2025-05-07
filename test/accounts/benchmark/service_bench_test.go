@@ -9,16 +9,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cex/internal/accounts/db"
+	"cex/internal/accounts/queue"
 	"cex/internal/accounts/service"
 )
 
-func BenchmarkListAccounts(b *testing.B) {
+func BenchmarkListAccountsService(b *testing.B) {
 	// Setup real DB connection once
 	dsn := os.Getenv("ACCOUNTS_DSN")
-	dbConn, err := db.NewDB(dsn)
+	dbConn, err := db.OpenAndMigrate(context.Background(), dsn)
 	require.NoError(b, err)
 
-	svc := service.NewService(dbConn)
+	publisher := queue.NewPublisher([]string{"localhost:9092"}, "accounts-events")
+	svc := service.NewAccountService(dbConn, publisher)
 	owner := uuid.New()
 
 	b.ResetTimer()

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 
@@ -36,6 +37,10 @@ func TestRegisterRoutes(t *testing.T) {
 }
 
 func setupTestDB() *sql.DB {
-	// Implement a mock or in-memory database setup for testing
-	return nil
+	// Create a mock database connection using sqlmock
+	db, _, err := sqlmock.New()
+	if err != nil {
+		panic("failed to create mock database: " + err.Error())
+	}
+	return db
 }
