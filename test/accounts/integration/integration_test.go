@@ -15,6 +15,7 @@ import (
 
 	"cex/internal/accounts/api"
 	"cex/internal/accounts/db"
+	"cex/internal/accounts/service"
 	"cex/pkg/cfg"
 
 	"github.com/labstack/echo/v4"
@@ -50,7 +51,12 @@ func TestAccountsEndToEnd(t *testing.T) {
 	// 3) Start HTTP server in background
 	e := echo.New()
 	e.Use(middleware.Recover())
-	api.RegisterRoutes(e, dbConn)
+
+	// Create accountService instance
+	accountService := service.NewService(dbConn, nil, nil, nil)
+
+	// Pass accountService to RegisterRoutes
+	api.RegisterRoutes(e, dbConn, accountService)
 
 	go e.Start(":8080")
 	time.Sleep(1 * time.Second)
